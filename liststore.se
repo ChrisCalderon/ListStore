@@ -1,0 +1,113 @@
+# -*- mode: python -*-
+# There's no good emacs mode for Serpent yet!
+#
+# Lists are stored at the sha3 hash of their owner + a 32 byte key.
+# Lists are not sorted.
+# When an item is removed from the list, it's spot is replaced with 0.
+# If the item deleted is the last item in the list, the list length is
+# decremented.
+# When an item is added to a list, it is added to the first empty spot,
+# and the list length is updated as needed.
+
+macro True: 1
+
+macro False: 0
+
+macro List($owner, $key):
+    with $temp = alloc(96):
+        $temp[0] = $owner
+        $temp[1] = $key
+        sha3($temp, items=2)
+
+macro length($list):
+    sload($list)
+
+macro getItem($list, $i):
+    sload($list + $i + 1)
+
+macro setItem($list, $i, $val):
+    sstore($list + $i + 1, $val)    
+
+macro incLength($list, $n):
+    sstore($list, length($list) + $n) 
+
+def addVal(key, val):
+    with myList = List(msg.sender, key):
+        with l = length(myList):
+            with i = 0:
+                while i < l:
+                    if getItem(myList, i) == 0:
+                        setItem(myList, i, val)
+                        return(True)
+                    i+=1
+                setItem(myList, i, val)
+                incLength(myList, 1)
+                return(True)
+
+def getList(owner, key):
+    with myList = List(owner, key):
+        with l = length(myList):
+            with result = alloc(32*l):
+                with i = 0:
+                    while i < l:
+                        result[i] = getItem(myList, i)
+                        i += 1
+                    return(result, items=l)
+
+def getMyList(key):
+    with myList = List(msg.sender, key):
+        with l = length(myList):
+            return(self.getList(msg.sender, key, outsz=l), items=l)
+
+def addVals(key, vals:int256[]):
+    with myList = List(msg.sender, key):
+        with l1 = length(myList):
+            with l2 = len(vals):
+                with i = 0:
+                    with j = 0:
+                        while((i < l1) and (j < l2)):
+                            if not getItem(myList, i):
+                                setItem(myList, i, vals[j])
+                                j += 1
+                            i += 1
+                        if j < l2:
+                            incLength(myList, l2 - j)
+                            while(j < l2):
+                                setItem(myList, i, vals[j])
+                                j += 1
+                                i += 1
+                        return(True)
+
+def isMember(owner, key, val):
+   with myList = List(owner, key):
+       with l = length(myList):
+           with i = 0:
+               while i < l:
+                   if getItem(myList, i) == val:
+                       return(True)
+                   i += 1
+               return(False)
+
+def remove(key, val):
+    with myList = List(msg.sender, key):
+        with l = length(myList):
+            with i = 0:
+                while i < l:
+                    if getItem(myList, i) == val:
+                        setItem(myList, i, 0)
+                        if i + 1 == l:
+                            incLength(myList, -1)
+                        return(True)
+                    i += 1
+                return(False)
+
+def replace(key, oldVal, newVal):
+    with myList = List(msg.sender, key):
+        with l = length(myList):
+            with i = 0:
+                while i < l:
+                    if getItem(myList, i) == oldVal:
+                        setItem(myList, i, newVal)
+                        return(True)
+                    i += 1
+                return(False)
